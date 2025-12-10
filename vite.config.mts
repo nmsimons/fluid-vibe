@@ -2,23 +2,13 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import dotenv from "dotenv";
 import tailwindcss from "@tailwindcss/vite";
-import { visualizer } from "rollup-plugin-visualizer";
 
 // Load environment variables
 dotenv.config();
 
 export default defineConfig(() => {
 	return {
-		plugins: [
-			react(),
-			tailwindcss(),
-			visualizer({
-				filename: "dist/bundle-analysis.html",
-				open: false,
-				gzipSize: true,
-				brotliSize: true,
-			}),
-		],
+		plugins: [react(), tailwindcss()],
 		build: {
 			outDir: "dist",
 			sourcemap: true,

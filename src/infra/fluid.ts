@@ -5,7 +5,6 @@
 
 import { AzureClient, AzureContainerServices } from "@fluidframework/azure-client";
 import { ContainerSchema, IFluidContainer } from "fluid-framework";
-import { OdspClient, OdspContainerServices } from "@fluidframework/odsp-client/beta";
 
 /**
  * This function will create a container if no container ID is passed.
@@ -16,13 +15,13 @@ import { OdspClient, OdspContainerServices } from "@fluidframework/odsp-client/b
 export async function loadFluidData<T extends ContainerSchema>(
 	containerId: string,
 	containerSchema: T,
-	client: AzureClient | OdspClient
+	client: AzureClient
 ): Promise<{
-	services: AzureContainerServices | OdspContainerServices;
+	services: AzureContainerServices;
 	container: IFluidContainer<T>;
 }> {
 	let container: IFluidContainer<T>;
-	let services: AzureContainerServices | OdspContainerServices;
+	let services: AzureContainerServices;
 
 	// Get or create the document depending if we are running through the create new flow
 	if (containerId.length === 0) {

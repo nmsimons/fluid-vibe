@@ -13,23 +13,6 @@ if (import.meta.env.DEV) {
 	import("eruda").then((eruda) => eruda.default.init());
 }
 
-async function start() {
-	const client = import.meta.env.VITE_FLUID_CLIENT;
+import { startStarter } from "./start/starterStart.js";
 
-	switch (client) {
-		case "local": {
-			// Dynamically load local start to reduce initial bundle
-			const { localStart } = await import("./start/localStart.js");
-			await localStart();
-			break;
-		}
-		default: {
-			// Dynamically load Azure start to reduce initial bundle
-			const { azureStart } = await import("./start/azureStart.js");
-			await azureStart();
-			break;
-		}
-	}
-}
-
-start();
+startStarter();

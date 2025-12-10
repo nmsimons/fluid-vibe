@@ -12,6 +12,7 @@ interface ImportMetaEnv {
 	readonly VITE_AZURE_CLIENT_ID?: string;
 	readonly VITE_AZURE_REDIRECT_URI?: string;
 	readonly VITE_AZURE_TENANT_ID?: string;
+	readonly VITE_LLM_ENDPOINT?: string;
 	readonly VITE_AZURE_FUNCTION_TOKEN_PROVIDER_URL?: string;
 	readonly VITE_AZURE_ORDERER?: string;
 	readonly VITE_AZURE_OPENAI_API_INSTANCE_NAME?: string;
