@@ -1,27 +1,28 @@
 import React from "react";
 import { TreeBeta } from "@fluidframework/tree/alpha";
-import { StarterTreeView, AppModel } from "../../schema/starterSchema.js";
+import type { TreeNode } from "@fluidframework/tree";
 
-export function useSharedTreeState<T>(tree: StarterTreeView, selector: (root: AppModel) => T): T {
-	const getRoot = React.useCallback(() => {
-		const root = tree.root as AppModel | undefined;
-		if (!root) {
-			throw new Error("SharedTree root not initialized");
-		}
-		return root;
-	}, [tree]);
+type TreeEvent = "nodeChanged" | "treeChanged";
 
-	const compute = React.useCallback(() => selector(getRoot()), [selector, getRoot]);
+/**
+ * General-purpose tree subscription: give it any Tree node and a selector for derived state.
+ * Defaults to `nodeChanged` (faster, ignores child edits). Pass `event="treeChanged"` to include subtree changes.
+ */
+export function useSharedTreeState<TNode extends TreeNode, T>(
+	node: TNode,
+	selector: (target: TNode) => T,
+	event: TreeEvent = "nodeChanged"
+): T {
+	const compute = React.useCallback(() => selector(node), [selector, node]);
 
 	const [snapshot, setSnapshot] = React.useState<T>(() => compute());
 
 	React.useEffect(() => {
-		const root = getRoot();
-		const offTree = TreeBeta.on(root, "treeChanged", () => setSnapshot(compute()));
+		const offTree = TreeBeta.on(node, event, () => setSnapshot(compute()));
 		return () => {
 			offTree();
 		};
-	}, [getRoot, compute]);
+	}, [node, event, compute]);
 
 	return snapshot;
 }

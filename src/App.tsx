@@ -8,15 +8,17 @@ import type { AppModel, Item } from "./schema/starterSchema.js";
 
 export function StarterApp() {
 	const { tree, llm, presence, me } = useFluidRuntime();
+	const root = tree.root as AppModel;
 	const snapshot = useSharedTreeState(
-		tree,
+		root,
 		React.useCallback(
-			(root: AppModel) => ({
-				title: root.title,
-				items: [...root.items],
+			(target: AppModel) => ({
+				title: target.title,
+				items: [...target.items],
 			}),
 			[]
-		)
+		),
+		"treeChanged"
 	);
 
 	const [newItem, setNewItem] = React.useState("");
