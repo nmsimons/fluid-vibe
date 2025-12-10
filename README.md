@@ -67,10 +67,10 @@ Legacy Fluent UI canvas demo code and dependencies have been removed to keep the
 
 - **Local mode**: No authentication; users are generated with `unique-names-generator` in `start/starterStart.tsx`.
 - **Azure mode (scaffolded)**:
-    - Uses MSAL in `src/start/azureStart.ts` to sign in and set active account.
-    - Token acquisition for Graph/profile pictures is in `src/infra/auth.ts` and `src/utils/graphService.ts` (can be disabled if not needed).
-    - Fluid client uses `getClientProps` (`src/infra/azure/azureClientProps.ts`) with `AzureFunctionTokenProvider` expecting `VITE_AZURE_FUNCTION_TOKEN_PROVIDER_URL`.
-    - User info passed into Fluid presence comes from MSAL account (id/name/photo when available).
+  - Uses MSAL in `src/start/azureStart.ts` to sign in and set active account.
+  - Token acquisition for Graph/profile pictures is in `src/infra/auth.ts` and `src/utils/graphService.ts` (can be disabled if not needed).
+  - Fluid client uses `getClientProps` (`src/infra/azure/azureClientProps.ts`) with `AzureFunctionTokenProvider` expecting `VITE_AZURE_FUNCTION_TOKEN_PROVIDER_URL`.
+  - User info passed into Fluid presence comes from MSAL account (id/name/photo when available).
 - To enable: set `VITE_FLUID_CLIENT=azure`, provide the Azure env vars below, and ensure your token provider function returns valid Fluid tokens.
 
 ### .env Setup
@@ -114,25 +114,25 @@ const tenantId = process.env.AZURE_TENANT_ID!;
 const tenantKey = process.env.AZURE_TENANT_KEY!; // from the Fluid Relay resource
 
 const httpTrigger: AzureFunction = async (context: Context, req: HttpRequest) => {
-	const {
-		tenantId: queryTenant,
-		documentId = "",
-		userId = "anonymous",
-		userName = "anonymous",
-		additionalDetails,
-	} = req.query;
-	const jwt = generateToken(
-		queryTenant ?? tenantId,
-		tenantKey,
-		[ScopeType.DocRead, ScopeType.DocWrite, ScopeType.SummaryWrite],
-		documentId,
-		{
-			id: userId,
-			name: userName,
-			additionalDetails,
-		}
-	);
-	context.res = { status: 200, body: jwt };
+  const {
+    tenantId: queryTenant,
+    documentId = "",
+    userId = "anonymous",
+    userName = "anonymous",
+    additionalDetails,
+  } = req.query;
+  const jwt = generateToken(
+    queryTenant ?? tenantId,
+    tenantKey,
+    [ScopeType.DocRead, ScopeType.DocWrite, ScopeType.SummaryWrite],
+    documentId,
+    {
+      id: userId,
+      name: userName,
+      additionalDetails,
+    }
+  );
+  context.res = { status: 200, body: jwt };
 };
 
 export default httpTrigger;
