@@ -105,15 +105,17 @@ self.onmessage = async (event) => {
 `;
 
 // Iframe HTML with strict CSP; hosts the worker and relays messages to parent.
-const iframeHtml = `
+function createIframeHtml(token: string): string {
+	return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob:; worker-src blob:; connect-src 'none'; img-src 'none'; style-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; worker-src blob:; connect-src 'none'; img-src 'none'; style-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';">
 </head>
 <body>
 <script>
+const token = ${JSON.stringify(token)};
 const workerCode = ${JSON.stringify(workerSource)};
 const blob = new Blob([workerCode], { type: 'application/javascript' });
 const url = URL.createObjectURL(blob);
@@ -121,29 +123,33 @@ const worker = new Worker(url);
 
 // Relay messages between parent and worker.
 worker.onmessage = (e) => {
-  parent.postMessage({ type: 'sandbox-result', payload: e.data }, '*');
+	parent.postMessage({ type: 'sandbox-result', token, payload: e.data }, '*');
 };
 
 window.addEventListener('message', (e) => {
-  if (e.data && e.data.type === 'sandbox-run') {
+	if (!e.data || e.data.token !== token) return;
+	if (e.data.type === 'sandbox-run') {
     worker.postMessage(e.data.payload);
-  } else if (e.data && e.data.type === 'sandbox-terminate') {
+	} else if (e.data.type === 'sandbox-terminate') {
     worker.terminate();
     URL.revokeObjectURL(url);
   }
 });
 
 // Signal ready.
-parent.postMessage({ type: 'sandbox-ready' }, '*');
+parent.postMessage({ type: 'sandbox-ready', token }, '*');
 </script>
 </body>
 </html>
 `;
+}
 
 export function createSandbox(): Sandbox {
 	let dead = false;
 	let seq = 0;
 	let ready = false;
+	const token =
+		globalThis.crypto?.randomUUID?.() ?? `sandbox-${Math.random().toString(16).slice(2)}`;
 	const pending = new Map<
 		number,
 		{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void; timer: number }
@@ -154,12 +160,13 @@ export function createSandbox(): Sandbox {
 	const iframe = document.createElement("iframe");
 	iframe.sandbox.add("allow-scripts"); // only scripts, no same-origin/forms/popups/etc.
 	iframe.style.display = "none";
-	iframe.srcdoc = iframeHtml;
+	iframe.srcdoc = createIframeHtml(token);
 	document.body.appendChild(iframe);
 
 	const handleMessage = (event: MessageEvent) => {
 		if (event.source !== iframe.contentWindow) return;
-		const { type, payload } = event.data ?? {};
+		const { type, payload, token: messageToken } = event.data ?? {};
+		if (messageToken !== token) return;
 
 		if (type === "sandbox-ready") {
 			ready = true;
@@ -168,6 +175,7 @@ export function createSandbox(): Sandbox {
 				iframe.contentWindow?.postMessage(
 					{
 						type: "sandbox-run",
+						token,
 						payload: { id: q.id, code: q.code, maxResultSize: MAX_RESULT_SIZE },
 					},
 					"*"
@@ -202,7 +210,7 @@ export function createSandbox(): Sandbox {
 		}
 		pending.clear();
 		queued.length = 0;
-		iframe.contentWindow?.postMessage({ type: "sandbox-terminate" }, "*");
+		iframe.contentWindow?.postMessage({ type: "sandbox-terminate", token }, "*");
 		window.removeEventListener("message", handleMessage);
 		iframe.remove();
 	};
@@ -225,7 +233,11 @@ export function createSandbox(): Sandbox {
 
 			if (ready) {
 				iframe.contentWindow?.postMessage(
-					{ type: "sandbox-run", payload: { id, code, maxResultSize: MAX_RESULT_SIZE } },
+					{
+						type: "sandbox-run",
+						token,
+						payload: { id, code, maxResultSize: MAX_RESULT_SIZE },
+					},
 					"*"
 				);
 			} else {
