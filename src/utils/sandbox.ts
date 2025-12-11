@@ -166,7 +166,10 @@ export function createSandbox(): Sandbox {
 			// Flush queued runs.
 			for (const q of queued) {
 				iframe.contentWindow?.postMessage(
-					{ type: "sandbox-run", payload: { id: q.id, code: q.code, maxResultSize: MAX_RESULT_SIZE } },
+					{
+						type: "sandbox-run",
+						payload: { id: q.id, code: q.code, maxResultSize: MAX_RESULT_SIZE },
+					},
 					"*"
 				);
 			}
