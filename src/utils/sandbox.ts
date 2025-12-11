@@ -8,21 +8,83 @@ export type Sandbox = {
 const defaultTimeoutMs = 2000;
 
 const workerSource = `
-// Remove or neuter common egress primitives.
-self.fetch = undefined;
-self.XMLHttpRequest = undefined;
-self.WebSocket = undefined;
-try { delete self.EventSource; } catch (_) { /* ignore */ }
-self.EventSource = undefined;
-self.importScripts = undefined;
-self.navigator = undefined;
-self.caches = undefined;
-self.indexedDB = undefined;
-self.localStorage = undefined;
-self.sessionStorage = undefined;
+// Harden surface: remove/replace high-risk globals and freeze prototypes to block prototype-walking for egress primitives.
+(() => {
+	const kill = (name) => {
+		try { delete self[name]; } catch (_) { /* ignore */ }
+		try { self[name] = undefined; } catch (_) { /* ignore */ }
+	};
+
+	[
+		"fetch",
+		"XMLHttpRequest",
+		"WebSocket",
+		"EventSource",
+		"Navigator",
+		"navigator",
+		"importScripts",
+		"BroadcastChannel",
+		"SharedWorker",
+		"MessageChannel",
+		"MessagePort",
+		"postMessage", // host communication is handled via onmessage; we leave self.postMessage but shadow global variable
+		"caches",
+		"indexedDB",
+		"localStorage",
+		"sessionStorage",
+		"crypto",
+		"URL",
+		"URLSearchParams",
+		"Request",
+		"Response",
+		"Headers",
+		"AbortController",
+		"FileReader",
+		"open",
+		"close",
+		"Client"
+	].forEach(kill);
+
+	// Freeze core prototypes and constructors to make resurrection harder.
+	const freezeSafe = (obj) => { try { Object.freeze(obj); } catch (_) { /* ignore */ } };
+	[
+		Object,
+		Function,
+		Array,
+		Map,
+		Set,
+		WeakMap,
+		WeakSet,
+		Promise,
+		RegExp,
+		Date,
+		Number,
+		String,
+		Boolean,
+		Symbol,
+		Error
+	].forEach((ctor) => {
+		freezeSafe(ctor.prototype);
+		freezeSafe(ctor);
+	});
+	freezeSafe(Object.prototype);
+	freezeSafe(Array.prototype);
+	freezeSafe(Function.prototype);
+})();
+
+// Keep private references to Function/AsyncFunction before we shadow them.
+const FunctionCtor = Function;
+const AsyncFunctionCtor = Object.getPrototypeOf(async function () {}).constructor;
+
+// Shadow dynamic code creators in the global scope.
+try { self.Function = undefined; } catch (_) { /* ignore */ }
+try { self.eval = undefined; } catch (_) { /* ignore */ }
+try { self.AsyncFunction = undefined; } catch (_) { /* ignore */ }
 
 const run = (code) => {
-	const fn = new Function("return (async () => { 'use strict';\n" + code + "\n})()");
+	// Inside user code, also shadow these names.
+	const wrapped = "'use strict'; const Function = undefined; const AsyncFunction = undefined; const eval = undefined; return (async () => {\n" + code + "\n})()";
+	const fn = FunctionCtor(wrapped);
 	return fn();
 };
 
