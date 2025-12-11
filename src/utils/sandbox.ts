@@ -7,8 +7,15 @@ export type Sandbox = {
 
 const defaultTimeoutMs = 2000;
 
+const MAX_CODE_SIZE = 64 * 1024; // 64 KB
+const MAX_RESULT_SIZE = 1024 * 1024; // 1 MB
+
 const workerSource = `
 // Harden surface: remove/replace high-risk globals and freeze prototypes to block prototype-walking for egress primitives.
+
+// Capture postMessage before we kill it so we can still communicate with host.
+const _postMessage = self.postMessage.bind(self);
+
 (() => {
 	const kill = (name) => {
 		try { delete self[name]; } catch (_) { /* ignore */ }
@@ -27,7 +34,7 @@ const workerSource = `
 		"SharedWorker",
 		"MessageChannel",
 		"MessagePort",
-		"postMessage", // host communication is handled via onmessage; we leave self.postMessage but shadow global variable
+		"postMessage",
 		"caches",
 		"indexedDB",
 		"localStorage",
@@ -42,7 +49,12 @@ const workerSource = `
 		"FileReader",
 		"open",
 		"close",
-		"Client"
+		"Client",
+		"performance",
+		"Performance",
+		"PerformanceObserver",
+		"Atomics",
+		"SharedArrayBuffer"
 	].forEach(kill);
 
 	// Freeze core prototypes and constructors to make resurrection harder.
@@ -72,9 +84,8 @@ const workerSource = `
 	freezeSafe(Function.prototype);
 })();
 
-// Keep private references to Function/AsyncFunction before we shadow them.
+// Keep private reference to Function before we shadow it.
 const FunctionCtor = Function;
-const AsyncFunctionCtor = Object.getPrototypeOf(async function () {}).constructor;
 
 // Shadow dynamic code creators in the global scope.
 try { self.Function = undefined; } catch (_) { /* ignore */ }
@@ -88,13 +99,24 @@ const run = (code) => {
 	return fn();
 };
 
+const sanitizeError = (err) => {
+	const msg = String(err);
+	// Strip file paths and internal details
+	return msg.replace(/([A-Za-z]:|\\/).+?:\\d+/g, '[path]').slice(0, 500);
+};
+
 self.onmessage = async (event) => {
-	const { id, code } = event.data;
+	const { id, code, maxResultSize } = event.data;
 	try {
 		const result = await run(code);
-		self.postMessage({ id, ok: true, result });
+		// Approximate size check on result
+		const resultStr = JSON.stringify(result);
+		if (resultStr && resultStr.length > (maxResultSize || 1048576)) {
+			throw new Error('Result too large');
+		}
+		_postMessage({ id, ok: true, result });
 	} catch (error) {
-		self.postMessage({ id, ok: false, error: String(error) });
+		_postMessage({ id, ok: false, error: sanitizeError(error) });
 	}
 };
 `;
@@ -106,6 +128,7 @@ export function createSandbox(options?: WorkerOptions): Sandbox {
 	// Do not revoke immediately; keep URL valid for worker lifetime.
 
 	let seq = 0;
+	let dead = false;
 	const pending = new Map<
 		number,
 		{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void; timer: number }
@@ -125,6 +148,8 @@ export function createSandbox(options?: WorkerOptions): Sandbox {
 	};
 
 	const terminate = () => {
+		if (dead) return;
+		dead = true;
 		for (const { reject, timer } of pending.values()) {
 			clearTimeout(timer);
 			reject(new Error("Sandbox terminated"));
@@ -136,15 +161,22 @@ export function createSandbox(options?: WorkerOptions): Sandbox {
 
 	const run = (code: string, timeoutMs = defaultTimeoutMs) => {
 		return new Promise<unknown>((resolve, reject) => {
+			if (dead) {
+				return reject(new Error("Sandbox is terminated"));
+			}
+			if (code.length > MAX_CODE_SIZE) {
+				return reject(new Error("Code exceeds maximum size"));
+			}
 			const id = ++seq;
 			const timer = window.setTimeout(() => {
 				pending.delete(id);
+				dead = true;
 				worker.terminate();
 				URL.revokeObjectURL(url);
 				reject(new Error("Sandbox timed out"));
 			}, timeoutMs);
 			pending.set(id, { resolve, reject, timer });
-			worker.postMessage({ id, code });
+			worker.postMessage({ id, code, maxResultSize: MAX_RESULT_SIZE });
 		});
 	};
 
