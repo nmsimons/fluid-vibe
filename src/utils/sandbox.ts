@@ -102,6 +102,15 @@ self.onmessage = async (event) => {
     _postMessage({ id, ok: false, error: sanitizeError(error) });
   }
 };
+
+// Prevent user code from overwriting the message handler
+try {
+  Object.defineProperty(self, "onmessage", {
+    value: self.onmessage,
+    writable: false,
+    configurable: false,
+  });
+} catch (_) {}
 `;
 
 // Iframe HTML with strict CSP; hosts the worker and relays messages to parent.
