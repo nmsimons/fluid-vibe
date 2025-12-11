@@ -44,7 +44,10 @@ export function createSandbox(options?: WorkerOptions): Sandbox {
 	// Do not revoke immediately; keep URL valid for worker lifetime.
 
 	let seq = 0;
-	const pending = new Map<number, { resolve: (value: unknown) => void; reject: (reason?: unknown) => void; timer: number }>();
+	const pending = new Map<
+		number,
+		{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void; timer: number }
+	>();
 
 	worker.onmessage = (event: MessageEvent) => {
 		const { id, ok, result, error } = event.data ?? {};
