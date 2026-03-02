@@ -36,7 +36,7 @@
 		"@fluidframework/protocol-definitions": "^4.0.0",
 		"@fluidframework/tree": "^2.83.0",
 		"@tailwindcss/vite": "^4.0.9",
-		"@vitejs/plugin-react": "^4.3.4",
+		"@vitejs/plugin-react": "^5.1.2",
 		"axios": "^1.7.9",
 		"dotenv": "^16.4.7",
 		"fluid-framework": "^2.83.0",
